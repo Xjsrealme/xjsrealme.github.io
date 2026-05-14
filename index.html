@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的世界玩家社交站</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.cdnfonts.com/css/minecraft-4" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/qiniu-js@3.4.2/dist/qiniu.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/crypto-js@4.2.0/crypto-js.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        mcGreen: '#55AA55',
+                        mcDarkGreen: '#337733',
+                        mcBlack: '#111111',
+                        mcWhite: '#FFFFFF',
+                    },
+                    fontFamily: {
+                        minecraft: ['Minecraft', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .pixel-border { border: 3px solid #337733; box-shadow: inset -3px -3px 0px 0px #55AA55; }
+            .pixel-border-active { border: 3px solid #337733; box-shadow: inset 3px 3px 0px 0px #55AA55; }
+            .pixel-btn { @apply pixel-border bg-mcGreen text-white font-minecraft transition-all duration-100; }
+            .pixel-btn:hover { @apply bg-[#66BB66]; }
+            .pixel-btn:active { @apply pixel-border-active; }
+            .message-bubble-self { @apply bg-mcGreen text-white rounded-lg px-3 py-2 max-w-xs; }
+            .message-bubble-other { @apply bg-gray-100 text-mcBlack rounded-lg px-3 py-2 max-w-xs; }
+            .unread-badge { @apply absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center; }
+            .avatar-1x1 { @apply w-12 h-12 rounded-full object-cover overflow-hidden; }
+            .avatar-small { @apply w-8 h-8 rounded-full object-cover overflow-hidden; }
+        }
+    </style>
+</head>
+<body class="bg-cover bg-center bg-fixed" style="background-image: url('login.jpg');">
+    <div class="min-h-screen flex flex-col items-center justify-center p-4">
+        <div class="bg-white/95 backdrop-blur-sm rounded-lg shadow-xl w-full max-w-md overflow-hidden border border-mcGreen">
+            <div class="bg-mcGreen p-4 text-center">
+                <h1 class="text-white font-minecraft text-2xl">我的世界玩家社交站</h1>
+                <p class="text-white/80 text-sm mt-1">冒险家的聚集地</p>
+            </div>
+            <div class="flex border-b border-mcGreen">
+                <button id="login-tab" class="flex-1 py-3 font-minecraft text-mcGreen border-b-2 border-mcGreen bg-white">登录</button>
+                <button id="register-tab" class="flex-1 py-3 font-minecraft text-mcBlack border-b-2 border-transparent">注册</button>
+            </div>
+            <div id="login-form" class="p-6 bg-white">
+                <div id="login-error" class="text-red-500 text-sm mb-4 text-center hidden"></div>
+                <div class="mb-4"><label class="block text-mcBlack text-sm font-minecraft mb-2">账户名</label><div class="relative"><span class="absolute inset-y-0 left-0 flex items-center pl-3 text-mcBlack"><i class="fas fa-user"></i></span><input type="text" id="login-username" class="w-full pl-10 pr-3 py-2 border border-mcGreen rounded bg-white" placeholder="输入您的账户名"></div></div>
+                <div class="mb-6"><label class="block text-mcBlack text-sm font-minecraft mb-2">密码</label><div class="relative"><span class="absolute inset-y-0 left-0 flex items-center pl-3 text-mcBlack"><i class="fas fa-lock"></i></span><input type="password" id="login-password" class="w-full pl-10 pr-3 py-2 border border-mcGreen rounded bg-white" placeholder="输入您的密码"></div></div>
+                <button id="login-btn" class="w-full pixel-btn py-3 text-lg">登录</button>
+            </div>
+            <div id="register-form" class="p-6 bg-white hidden">
+                <div id="register-success" class="text-green-500 text-sm mb-4 text-center hidden"></div>
+                <div id="register-error" class="text-red-500 text-sm mb-4 text-center hidden"></div>
+                <div class="mb-4"><label class="block text-mcBlack text-sm font-minecraft mb-2">账户名</label><div class="relative"><span class="absolute inset-y-0 left-0 flex items-center pl-3 text-mcBlack"><i class="fas fa-user"></i></span><input type="text" id="register-username" class="w-full pl-10 pr-3 py-2 border border-mcGreen rounded bg-white" placeholder="设置您的账户名"></div></div>
+                <div class="mb-4"><label class="block text-mcBlack text-sm font-minecraft mb-2">游戏名</label><div class="relative"><span class="absolute inset-y-0 left-0 flex items-center pl-3 text-mcBlack"><i class="fas fa-gamepad"></i></span><input type="text" id="register-nickname" class="w-full pl-10 pr-3 py-2 border border-mcGreen rounded bg-white" placeholder="别人看到的名字"></div></div>
+                <div class="mb-4"><label class="block text-mcBlack text-sm font-minecraft mb-2">密码</label><div class="relative"><span class="absolute inset-y-0 left-0 flex items-center pl-3 text-mcBlack"><i class="fas fa-lock"></i></span><input type="password" id="register-password" class="w-full pl-10 pr-3 py-2 border border-mcGreen rounded bg-white" placeholder="设置您的密码"></div></div>
+                <div class="mb-6"><label class="block text-mcBlack text-sm font-minecraft mb-2">确认密码</label><div class="relative"><span class="absolute inset-y-0 left-0 flex items-center pl-3 text-mcBlack"><i class="fas fa-lock"></i></span><input type="password" id="register-confirm-password" class="w-full pl-10 pr-3 py-2 border border-mcGreen rounded bg-white" placeholder="再次输入密码"></div></div>
+                <button id="register-btn" class="w-full pixel-btn py-3 text-lg">提交注册</button>
+                <p class="text-xs text-mcBlack/70 text-center mt-4">注：第一个注册的人自动成为管理员，其他人需要等待审核</p>
+            </div>
+        </div>
+        <p class="text-white text-sm mt-4 font-minecraft">——By XjsRealMe，将持续维护</p>
+    </div>
+
+    <script>
+        // ==============================================
+        // 🔑 七牛云配置（⚠️ 测试用，上线前务必移至后端并重置密钥）
+        // ==============================================
+        const QINIU_CONFIG = {
+          accessKey: "-usveErevt79Yve8Uv97BKYz7qLMdiH7GtNXdH9I",
+          secretKey: "1yTwlL4jUDmy5zH5s3hm3sNKDVxMgeUsXc7NCbaY",
+          bucket: "xjsrealme-mc-group",
+          domain: "teve5k41v.hn-bkt.clouddn.com",
+          region: qiniu.region.z2
+        };
+
+        // ==============================================
+        // ✅ 七牛云上传凭证生成（标准 CryptoJS 流程）
+        // ==============================================
+        function generateUploadToken(accessKey, secretKey, bucket, deadline) {
+            const policy = { scope: bucket, deadline: deadline };
+            const policyStr = JSON.stringify(policy);
+            const encodedPolicy = CryptoJS.enc.Base64.stringify(CryptoJS.enc.Utf8.parse(policyStr))
+                .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+            const sign = CryptoJS.HmacSHA1(encodedPolicy, secretKey).toString(CryptoJS.enc.Base64)
+                .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+            return `${accessKey}:${sign}:${encodedPolicy}`;
+        }
+
+        // 安全转义函数（防止 XSS）
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // 初始化本地存储
+        function initStorage() {
+            const users = JSON.parse(localStorage.getItem('mc_users') || '[]');
+            users.forEach(u => { if (!u.nickname) u.nickname = u.username; if (!u.email) u.email = u.username + '@example.com'; });
+            localStorage.setItem('mc_users', JSON.stringify(users));
+            if (!localStorage.getItem('mc_groups')) localStorage.setItem('mc_groups', '[]');
+            if (!localStorage.getItem('mc_group_messages')) localStorage.setItem('mc_group_messages', '{}');
+            if (!localStorage.getItem('mc_friends')) localStorage.setItem('mc_friends', '[]');
+            if (!localStorage.getItem('mc_friend_messages')) localStorage.setItem('mc_friend_messages', '{}');
+            if (!localStorage.getItem('mc_videos')) localStorage.setItem('mc_videos', '[]');
+            if (!localStorage.getItem('mc_video_comments')) localStorage.setItem('mc_video_comments', '{}');
+        }
+
+        function getUsers() { return JSON.parse(localStorage.getItem('mc_users') || '[]'); }
+        function saveUsers(u) { localStorage.setItem('mc_users', JSON.stringify(u)); }
+        function getGroups() { return JSON.parse(localStorage.getItem('mc_groups') || '[]'); }
+        function saveGroups(g) { localStorage.setItem('mc_groups', JSON.stringify(g)); }
+        function getVideos() { return JSON.parse(localStorage.getItem('mc_videos') || '[]'); }
+        function saveVideos(v) { localStorage.setItem('mc_videos', JSON.stringify(v)); }
+        function getVideoComments() { return JSON.parse(localStorage.getItem('mc_video_comments') || '{}'); }
+        function saveVideoComments(c) { localStorage.setItem('mc_video_comments', JSON.stringify(c)); }
+
+        // 登录注册切换
+        document.getElementById('login-tab').addEventListener('click', () => {
+            document.getElementById('login-tab').classList.add('border-mcGreen','bg-white','text-mcGreen');
+            document.getElementById('register-tab').classList.remove('border-mcGreen','bg-white','text-mcGreen');
+            document.getElementById('login-form').classList.remove('hidden');
+            document.getElementById('register-form').classList.add('hidden');
+        });
+        document.getElementById('register-tab').addEventListener('click', () => {
+            document.getElementById('register-tab').classList.add('border-mcGreen','bg-white','text-mcGreen');
+            document.getElementById('login-tab').classList.remove('border-mcGreen','bg-white','text-mcGreen');
+            document.getElementById('register-form').classList.remove('hidden');
+            document.getElementById('login-form').classList.add('hidden');
+        });
+
+        // 登录
+        document.getElementById('login-btn').addEventListener('click', () => {
+            const username = document.getElementById('login-username').value.trim();
+            const password = document.getElementById('login-password').value.trim();
+            const err = document.getElementById('login-error');
+            if (!username || !password) { err.textContent = '请输入账户名和密码'; err.classList.remove('hidden'); return; }
+            const users = getUsers();
+            const user = users.find(u => u.username === username && u.password === password);
+            if (!user) { err.textContent = '账户名或密码错误'; err.classList.remove('hidden'); return; }
+            if (user.status === 'pending') { err.textContent = '账户尚未通过审核'; err.classList.remove('hidden'); return; }
+            if (user.permission === 0) { err.textContent = '账户已被封禁'; err.classList.remove('hidden'); return; }
+            sessionStorage.setItem('current_user', JSON.stringify(user));
+            loadMainPage(user);
+        });
+
+        // 注册
+        document.getElementById('register-btn').addEventListener('click', () => {
+            const username = document.getElementById('register-username').value.trim();
+            const nickname = document.getElementById('register-nickname').value.trim() || username;
+            const password = document.getElementById('register-password').value.trim();
+            const confirm = document.getElementById('register-confirm-password').value.trim();
+            const success = document.getElementById('register-success');
+            const err = document.getElementById('register-error');
+            if (!username || !password || !confirm) { err.textContent = '请填写所有字段'; err.classList.remove('hidden'); return; }
+            if (password !== confirm) { err.textContent = '两次密码不一致'; err.classList.remove('hidden'); return; }
+            if (password.length < 6) { err.textContent = '密码至少6位'; err.classList.remove('hidden'); return; }
+            const users = getUsers();
+            if (users.find(u => u.username === username)) { err.textContent = '账户名已占用'; err.classList.remove('hidden'); return; }
+            let perm = 1, status = 'pending';
+            if (users.length === 0) { perm = 3; status = 'approved'; success.textContent = '注册成功！您是第一个管理员，可直接登录'; }
+            else { success.textContent = '注册申请已提交，等待审核'; }
+            users.push({ username, password, email: username+'@example.com', permission: perm, status, nickname, avatar: null });
+            saveUsers(users);
+            success.classList.remove('hidden'); err.classList.add('hidden');
+            document.getElementById('register-username').value = '';
+            document.getElementById('register-nickname').value = '';
+            document.getElementById('register-password').value = '';
+            document.getElementById('register-confirm-password').value = '';
+            setTimeout(() => success.classList.add('hidden'), 3000);
+        });
+
+        let currentGroup, currentFriend, currentVideoUser, currentVideo, tempAvatar, sidebarOpen = true, selectedFriends = [];
+
+        function loadMainPage(currentUser) {
+            currentVideoUser = currentUser.username;
+            const defaultTitle = currentUser.permission >= 3 ? '管理' : '视频';
+            document.body.style.background = 'white';
+            document.body.innerHTML = `
+                <div id="sidebar-mask" class="hidden fixed inset-0 bg-black/50 z-40 md:hidden"></div>
+                <div class="flex h-screen bg-white">
+                    <div id="sidebar" class="fixed md:relative z-50 h-full w-64 md:w-52 bg-white border-r border-mcGreen flex flex-col transform transition-transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0">
+                        <div class="p-4 border-b border-mcGreen flex justify-between items-center">
+                            <h2 class="font-minecraft text-mcGreen">社交站</h2>
+                            <button id="close-sidebar-btn" class="md:hidden text-mcBlack"><i class="fas fa-times"></i></button>
+                        </div>
+                        <div class="sidebar-menu flex-1">
+                            ${currentUser.permission >=3 ? '<div class="sidebar-item cursor-pointer p-3 hover:bg-mcGreen/10 active" data-page="manage"><i class="fas fa-cog mr-2 text-mcGreen"></i>管理</div>' : ''}
+                            <div class="sidebar-item cursor-pointer p-3 hover:bg-mcGreen/10" data-page="video"><i class="fas fa-video mr-2 text-mcGreen"></i>视频</div>
+                            <div class="sidebar-item cursor-pointer p-3 hover:bg-mcGreen/10" data-page="group"><i class="fas fa-users mr-2 text-mcGreen"></i>群组</div>
+                            <div class="sidebar-item cursor-pointer p-3 hover:bg-mcGreen/10" data-page="friend"><i class="fas fa-user-friends mr-2 text-mcGreen"></i>好友</div>
+                            <div class="sidebar-item cursor-pointer p-3 hover:bg-mcGreen/10" data-page="setting"><i class="fas fa-cog mr-2 text-mcGreen"></i>设置</div>
+                        </div>
+                        <div class="mt-auto p-3 border-t border-mcGreen"><div class="flex items-center">${currentUser.avatar ? `<img src="${currentUser.avatar}" class="avatar-small mr-2">` : '<i class="fas fa-user-circle text-2xl mr-2 text-mcGreen"></i>'}<span id="current-user-name">${escapeHtml(currentUser.nickname)}</span></div></div>
+                    </div>
+                    <div class="flex-1 overflow-auto">
+                        <div class="md:hidden p-2 border-b border-mcGreen flex items-center"><button id="open-sidebar-btn" class="text-mcBlack p-2"><i class="fas fa-bars"></i></button><span id="mobile-page-title" class="ml-2 font-minecraft text-mcGreen">${defaultTitle}</span></div>
+                        <div id="manage-page" class="page p-6 bg-white ${currentUser.permission >=3 ? '' : 'hidden'}"><h2 class="text-xl font-minecraft mb-4">用户管理</h2><p class="text-sm text-mcBlack/70 mb-4">权限：0封禁 1普通 2高级 3管理</p><div id="user-list" class="space-y-3"></div></div>
+                        <div id="video-page" class="page hidden bg-white"><div class="p-4 border-b flex justify-between items-center"><h2 class="text-xl font-minecraft">我的视频</h2><button id="upload-video-btn" class="pixel-btn px-3 py-1 text-sm"><i class="fas fa-upload mr-1"></i>上传</button></div><div id="video-user-list" class="p-4 border-b flex space-x-4 overflow-x-auto"></div><div id="video-list" class="p-6"></div></div>
+                        <div id="group-page" class="page hidden flex h-full"><div class="w-64 border-r overflow-auto"><div class="p-2 border-b flex justify-between items-center"><span class="font-minecraft text-mcGreen">群聊</span><button id="create-group-btn" class="text-mcGreen"><i class="fas fa-plus"></i></button></div><div id="group-list" class="space-y-1"></div></div><div class="flex-1 flex flex-col"><div id="group-chat-title" class="border-b p-3 font-minecraft">选择群组</div><div id="group-chat-messages" class="flex-1 overflow-auto p-4 space-y-2"></div><div class="border-t p-3 flex"><input id="group-chat-input" class="flex-1 border rounded px-3 py-2" placeholder="输入消息..." disabled><button id="group-chat-send" class="ml-2 pixel-btn px-4" disabled>发送</button></div></div></div>
+                        <div id="friend-page" class="page hidden flex h-full"><div class="w-64 border-r"><div class="p-2 border-b"><span class="font-minecraft text-mcGreen">好友</span></div><div id="friend-list" class="space-y-1"></div></div><div class="flex-1 flex flex-col"><div id="friend-chat-title" class="border-b p-3 font-minecraft">选择好友</div><div id="friend-chat-messages" class="flex-1 overflow-auto p-4 space-y-2"></div><div class="border-t p-3 flex"><input id="friend-chat-input" class="flex-1 border rounded px-3 py-2" placeholder="输入消息..." disabled><button id="friend-chat-send" class="ml-2 pixel-btn px-4" disabled>发送</button></div></div></div>
+                        <div id="setting-page" class="page hidden p-6 bg-white"><h2 class="text-xl font-minecraft mb-4">个人设置</h2><div class="max-w-md"><div class="mb-6"><label class="block text-sm font-minecraft mb-2">头像</label><div class="flex items-center space-x-4"><div id="avatar-preview" class="avatar-1x1 bg-gray-100 flex items-center justify-center">${currentUser.avatar ? `<img src="${currentUser.avatar}" class="w-full h-full object-cover">` : '<i class="fas fa-user text-2xl text-mcBlack/50"></i>'}</div><div><input type="file" id="avatar-input" accept="image/*" class="hidden"><button id="select-avatar-btn" class="pixel-btn px-3 py-1 text-sm mb-2">选择图片</button><div id="avatar-actions" class="hidden space-x-2"><button id="cancel-avatar-btn" class="px-3 py-1 border rounded text-sm">取消</button><button id="save-avatar-btn" class="pixel-btn px-3 py-1 text-sm">保存</button></div></div></div></div><div class="mb-4"><label class="block text-sm font-minecraft mb-2">游戏名</label><input id="setting-nickname" class="w-full border rounded px-3 py-2" value="${escapeHtml(currentUser.nickname)}"><p class="text-xs text-mcBlack/70 mt-1">账户名：${escapeHtml(currentUser.username)}（不可改）</p></div><button id="save-setting-btn" class="pixel-btn px-4 py-2">保存更改</button></div></div>
+                    </div>
+                </div>
+                <div id="create-group-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50"><div class="bg-white rounded-lg p-6 w-full max-w-md border"><h3 class="font-minecraft text-lg mb-4">新建群组</h3><div class="mb-4"><label class="block text-sm mb-2">群组名称</label><input id="new-group-name" class="w-full border rounded px-3 py-2" placeholder="输入群组名称"></div><div class="mb-4"><label class="block text-sm mb-2">邀请好友</label><div id="invite-friend-list" class="space-y-2 max-h-40 overflow-auto"></div></div><div class="flex justify-end space-x-2"><button id="cancel-group-btn" class="px-4 py-2 border rounded">取消</button><button id="confirm-group-btn" class="pixel-btn px-4 py-2">创建</button></div></div></div>
+                <div id="upload-video-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50"><div class="bg-white rounded-lg p-6 w-full max-w-md border"><h3 class="font-minecraft text-lg mb-4">上传视频</h3><div class="mb-4"><label class="block text-sm mb-2">选择视频文件</label><input type="file" id="video-input" accept="video/*" class="w-full"><p class="text-xs text-mcBlack/70 mt-1">存储限制：10GB</p><div id="upload-progress" class="hidden mt-2"><div class="w-full bg-gray-200 rounded-full h-2.5"><div id="progress-bar" class="bg-mcGreen h-2.5 rounded-full" style="width:0%"></div></div><p id="progress-text" class="text-xs mt-1">0%</p></div></div><div class="flex justify-end space-x-2"><button id="cancel-video-btn" class="px-4 py-2 border rounded">取消</button><button id="confirm-video-btn" class="pixel-btn px-4 py-2">上传</button></div></div></div>
+                <div id="comment-modal" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50"><div class="bg-white rounded-lg p-6 w-full max-w-lg h-[80vh] flex flex-col border"><h3 class="font-minecraft text-lg mb-4">评论</h3><div id="comment-list" class="flex-1 overflow-auto space-y-4"></div><div class="border-t pt-4 mt-4 flex"><input id="comment-input" class="flex-1 border rounded px-3 py-2" placeholder="输入评论..."><button id="send-comment-btn" class="ml-2 pixel-btn px-4">发送</button></div></div></div>
+            `;
+            initMainPageEvents(currentUser);
+            if (currentUser.permission >= 3) loadUserList();
+            else document.querySelector('.sidebar-item[data-page="video"]').click();
+        }
+
+        function initMainPageEvents(currentUser) {
+            document.getElementById('open-sidebar-btn').addEventListener('click', () => { sidebarOpen=true; document.getElementById('sidebar').classList.remove('-translate-x-full'); document.getElementById('sidebar-mask').classList.remove('hidden'); });
+            document.getElementById('close-sidebar-btn').addEventListener('click', () => { sidebarOpen=false; document.getElementById('sidebar').classList.add('-translate-x-full'); document.getElementById('sidebar-mask').classList.add('hidden'); });
+            document.getElementById('sidebar-mask').addEventListener('click', () => { sidebarOpen=false; document.getElementById('sidebar').classList.add('-translate-x-full'); document.getElementById('sidebar-mask').classList.add('hidden'); });
+
+            document.querySelectorAll('.sidebar-item').forEach(item => item.addEventListener('click', () => {
+                document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active','bg-mcGreen/10'));
+                item.classList.add('active','bg-mcGreen/10');
+                const page = item.dataset.page;
+                document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
+                document.getElementById(page+'-page').classList.remove('hidden');
+                document.getElementById('mobile-page-title').textContent = item.textContent.trim();
+                if (window.innerWidth < 768) { sidebarOpen=false; document.getElementById('sidebar').classList.add('-translate-x-full'); document.getElementById('sidebar-mask').classList.add('hidden'); }
+                if (page==='manage') loadUserList();
+                if (page==='group') loadGroupList();
+                if (page==='friend') loadFriendList();
+                if (page==='video') { currentVideoUser = currentUser.username; loadVideoUserList(); loadVideoList(); }
+                if (page==='setting') document.getElementById('setting-nickname').value = currentUser.nickname;
+            }));
+
+            document.getElementById('create-group-btn').addEventListener('click', () => {
+                const friends = JSON.parse(localStorage.getItem('mc_friends') || '[]');
+                const users = getUsers();
+                const inviteListEl = document.getElementById('invite-friend-list');
+                inviteListEl.innerHTML = '';
+                selectedFriends = [];
+                if (friends.length ===0) {
+                    inviteListEl.innerHTML = '<p class="text-sm text-mcBlack/70">暂无好友，无法邀请</p>';
+                } else {
+                    friends.forEach(friend => {
+                        const user = users.find(u => u.username === friend.username);
+                        const friendItem = document.createElement('div');
+                        friendItem.className = 'flex items-center p-2 border rounded cursor-pointer hover:bg-mcGreen/10';
+                        friendItem.innerHTML = `<input type="checkbox" class="friend-checkbox mr-2" data-username="${friend.username}"><span>${escapeHtml(user?.nickname || friend.username)}</span>`;
+                        friendItem.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            const checkbox = friendItem.querySelector('.friend-checkbox');
+                            checkbox.checked = !checkbox.checked;
+                            if (checkbox.checked) selectedFriends.push(friend.username);
+                            else selectedFriends = selectedFriends.filter(f => f !== friend.username);
+                        });
+                        inviteListEl.appendChild(friendItem);
+                    });
+                }
+                document.getElementById('create-group-modal').classList.remove('hidden');
+            });
+            document.getElementById('cancel-group-btn').addEventListener('click', () => {
+                document.getElementById('create-group-modal').classList.add('hidden');
+                document.getElementById('new-group-name').value = '';
+                selectedFriends = [];
+            });
+            document.getElementById('confirm-group-btn').addEventListener('click', () => {
+                const groupName = document.getElementById('new-group-name').value.trim();
+                if (!groupName) return alert('请输入群组名称');
+                const groups = getGroups();
+                if (groups.find(g => g.name === groupName)) return alert('群组已存在');
+                groups.push({ name: groupName, unread: 0, members: [currentUser.username, ...selectedFriends] });
+                saveGroups(groups);
+                document.getElementById('create-group-modal').classList.add('hidden');
+                document.getElementById('new-group-name').value = '';
+                selectedFriends = [];
+                loadGroupList();
+            });
+
+            // 上传视频（七牛云）
+            document.getElementById('upload-video-btn').addEventListener('click', () => {
+                document.getElementById('upload-video-modal').classList.remove('hidden');
+            });
+            document.getElementById('cancel-video-btn').addEventListener('click', () => {
+                document.getElementById('upload-video-modal').classList.add('hidden');
+                document.getElementById('video-input').value = '';
+                document.getElementById('upload-progress').classList.add('hidden');
+            });
+            document.getElementById('confirm-video-btn').addEventListener('click', async () => {
+                const file = document.getElementById('video-input').files[0];
+                if (!file) return alert('请选择视频文件');
+                if (file.size > 10*1024*1024*1024) return alert('文件超过10GB');
+                document.getElementById('upload-progress').classList.remove('hidden');
+                const progressBar = document.getElementById('progress-bar');
+                const progressText = document.getElementById('progress-text');
+                try {
+                    const deadline = Math.floor(Date.now()/1000) + 7200;
+                    const token = generateUploadToken(QINIU_CONFIG.accessKey, QINIU_CONFIG.secretKey, QINIU_CONFIG.bucket, deadline);
+                    console.log('Upload token:', token); // 调试用，可保留
+                    const ext = file.name.includes('.') ? file.name.substring(file.name.lastIndexOf('.')) : '';
+                    const key = `mc-videos/${Date.now()}_${Math.random().toString(36).substring(2,8)}${ext}`;
+                    const observable = qiniu.upload(file, key, token, { fname: key }, {
+                        useCdnDomain: true,
+                        region: QINIU_CONFIG.region,
+                        chunkSize: 4 * 1024 * 1024, // 4MB 分块
+                        resumeRecord: true
+                    });
+                    observable.subscribe({
+                        next(res) {
+                            const pct = Math.floor(res.total.percent);
+                            progressBar.style.width = pct + '%';
+                            progressText.textContent = `上传进度：${pct}%`;
+                        },
+                        error(err) {
+                            alert('上传失败：' + err.message);
+                            document.getElementById('upload-progress').classList.add('hidden');
+                        },
+                        complete(res) {
+                            const videos = getVideos();
+                            videos.push({
+                                id: Date.now(),
+                                username: currentUser.username,
+                                name: file.name,
+                                size: file.size,
+                                url: `https://${QINIU_CONFIG.domain}/${res.key}`,
+                                uploadTime: Date.now()
+                            });
+                            saveVideos(videos);
+                            document.getElementById('upload-video-modal').classList.add('hidden');
+                            document.getElementById('video-input').value = '';
+                            document.getElementById('upload-progress').classList.add('hidden');
+                            loadVideoList(); loadVideoUserList();
+                            alert('视频上传成功！');
+                        }
+                    });
+                } catch(e) { alert('出错：'+e.message); document.getElementById('upload-progress').classList.add('hidden'); }
+            });
+
+            // 聊天事件
+            document.getElementById('group-chat-send').addEventListener('click', () => sendGroupMessage(currentUser));
+            document.getElementById('group-chat-input').addEventListener('keypress', (e) => { if (e.key==='Enter') sendGroupMessage(currentUser); });
+            document.getElementById('friend-chat-send').addEventListener('click', () => sendFriendMessage(currentUser));
+            document.getElementById('friend-chat-input').addEventListener('keypress', (e) => { if (e.key==='Enter') sendFriendMessage(currentUser); });
+
+            // 头像相关
+            document.getElementById('select-avatar-btn').addEventListener('click', () => document.getElementById('avatar-input').click());
+            document.getElementById('avatar-input').addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const img = new Image();
+                    img.onload = function() {
+                        const canvas = document.createElement('canvas');
+                        const size = Math.min(img.width, img.height);
+                        canvas.width = size; canvas.height = size;
+                        canvas.getContext('2d').drawImage(img, (img.width-size)/2, (img.height-size)/2, size, size, 0,0,size,size);
+                        tempAvatar = canvas.toDataURL('image/jpeg', 0.7); // 压缩为 JPEG
+                        document.getElementById('avatar-preview').innerHTML = `<img src="${tempAvatar}" class="w-full h-full object-cover">`;
+                        document.getElementById('avatar-actions').classList.remove('hidden');
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+            document.getElementById('cancel-avatar-btn').addEventListener('click', () => {
+                tempAvatar = null;
+                document.getElementById('avatar-input').value = '';
+                const user = JSON.parse(sessionStorage.getItem('current_user'));
+                document.getElementById('avatar-preview').innerHTML = user.avatar ? `<img src="${user.avatar}" class="w-full h-full object-cover">` : '<i class="fas fa-user text-2xl text-mcBlack/50"></i>';
+                document.getElementById('avatar-actions').classList.add('hidden');
+            });
+            document.getElementById('save-avatar-btn').addEventListener('click', () => {
+                if (!tempAvatar) return;
+                const users = getUsers();
+                const user = users.find(u => u.username === currentUser.username);
+                user.avatar = tempAvatar;
+                saveUsers(users);
+                currentUser.avatar = tempAvatar;
+                sessionStorage.setItem('current_user', JSON.stringify(currentUser));
+                document.getElementById('current-user-name').previousElementSibling.innerHTML = `<img src="${tempAvatar}" class="avatar-small mr-2">`;
+                document.getElementById('avatar-actions').classList.add('hidden');
+                tempAvatar = null;
+                alert('头像修改成功');
+            });
+
+            // 设置保存
+            document.getElementById('save-setting-btn').addEventListener('click', () => {
+                const newNickname = document.getElementById('setting-nickname').value.trim();
+                if (!newNickname) return alert('游戏名不能为空');
+                const users = getUsers();
+                const user = users.find(u => u.username === currentUser.username);
+                user.nickname = newNickname;
+                saveUsers(users);
+                currentUser.nickname = newNickname;
+                sessionStorage.setItem('current_user', JSON.stringify(currentUser));
+                document.getElementById('current-user-name').textContent = newNickname;
+                alert('游戏名修改成功');
+            });
+
+            // 评论发送
+            document.getElementById('send-comment-btn').addEventListener('click', () => {
+                if (!currentVideo) return;
+                const content = document.getElementById('comment-input').value.trim();
+                if (!content) return;
+                const map = getVideoComments();
+                if (!map[currentVideo]) map[currentVideo] = [];
+                map[currentVideo].push({ id: Date.now(), username: currentUser.nickname, content, time: Date.now(), replies: [] });
+                saveVideoComments(map);
+                document.getElementById('comment-input').value = '';
+                loadCommentList(currentVideo);
+            });
+        }
+
+        function loadUserList() {
+            const users = getUsers();
+            const currentUser = JSON.parse(sessionStorage.getItem('current_user'));
+            const friends = JSON.parse(localStorage.getItem('mc_friends') || '[]');
+            const listEl = document.getElementById('user-list');
+            listEl.innerHTML = '';
+            users.forEach(user => {
+                const isSelf = user.username === currentUser.username;
+                const isFriend = friends.find(f => f.username === user.username);
+                const div = document.createElement('div');
+                div.className = 'p-4 border rounded-lg bg-white';
+                div.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <div class="flex items-center">${user.avatar ? `<img src="${user.avatar}" class="avatar-small mr-2">` : '<i class="fas fa-user-circle text-2xl mr-2 text-mcBlack/50"></i>'}<p class="font-medium text-mcBlack">${escapeHtml(user.username)} ${user.nickname !== user.username ? `(游戏名：${escapeHtml(user.nickname)})` : ''} ${isSelf ? '(你自己)' : ''}</p></div>
+                            <p class="text-sm text-mcBlack/70">${escapeHtml(user.email)}</p>
+                            <p class="text-sm"><span class="${user.status==='pending'?'text-yellow-500':'text-green-500'}">${user.status==='pending'?'待审核':'已审核'}</span> | 权限：<span class="text-mcGreen">${['封禁','普通用户','高级用户','管理员'][user.permission]}(${user.permission})</span></p>
+                        </div>
+                        <div class="space-x-2">
+                            ${user.status==='pending' ? `<button class="px-2 py-1 bg-green-500 text-white text-xs rounded approve-btn" data-username="${escapeHtml(user.username)}">审核通过</button>` : ''}
+                            ${!isSelf && user.permission!==0 ? `<button class="px-2 py-1 bg-red-500 text-white text-xs rounded ban-btn" data-username="${escapeHtml(user.username)}">封禁</button>` : ''}
+                            ${!isSelf && user.permission===0 ? `<button class="px-2 py-1 bg-green-500 text-white text-xs rounded unban-btn" data-username="${escapeHtml(user.username)}">解封</button>` : ''}
+                            ${!isSelf ? `<button class="px-2 py-1 bg-blue-500 text-white text-xs rounded promote-btn" data-username="${escapeHtml(user.username)}">提升权限</button>` : ''}
+                            ${!isSelf && !isFriend ? `<button class="px-2 py-1 bg-mcGreen text-white text-xs rounded add-friend-btn" data-username="${escapeHtml(user.username)}" data-nickname="${escapeHtml(user.nickname)}">添加好友</button>` : ''}
+                            ${isFriend ? '<span class="px-2 py-1 text-xs text-mcGreen">已好友</span>' : ''}
+                        </div>
+                    </div>`;
+                listEl.appendChild(div);
+            });
+            document.querySelectorAll('.approve-btn').forEach(b => b.addEventListener('click', (e) => { const u = getUsers(); const t = u.find(x=>x.username===e.target.dataset.username); t.status='approved'; saveUsers(u); loadUserList(); }));
+            document.querySelectorAll('.ban-btn').forEach(b => b.addEventListener('click', (e) => { const u = getUsers(); const t = u.find(x=>x.username===e.target.dataset.username); t.permission=0; saveUsers(u); loadUserList(); }));
+            document.querySelectorAll('.unban-btn').forEach(b => b.addEventListener('click', (e) => { const u = getUsers(); const t = u.find(x=>x.username===e.target.dataset.username); t.permission=1; saveUsers(u); loadUserList(); }));
+            document.querySelectorAll('.promote-btn').forEach(b => b.addEventListener('click', (e) => { const u = getUsers(); const t = u.find(x=>x.username===e.target.dataset.username); if(t.permission<3) { t.permission+=1; saveUsers(u); loadUserList(); } }));
+            document.querySelectorAll('.add-friend-btn').forEach(b => b.addEventListener('click', (e) => { const f = JSON.parse(localStorage.getItem('mc_friends')||'[]'); if(!f.find(x=>x.username===e.target.dataset.username)){ f.push({username:e.target.dataset.username, nickname:e.target.dataset.nickname, online:true}); localStorage.setItem('mc_friends', JSON.stringify(f)); loadUserList(); } }));
+        }
+
+        function loadVideoUserList() {
+            const videos = getVideos();
+            const users = getUsers();
+            const cu = JSON.parse(sessionStorage.getItem('current_user'));
+            const videoUsers = [...new Set(videos.map(v=>v.username))];
+            if (!videoUsers.includes(cu.username)) videoUsers.unshift(cu.username);
+            const listEl = document.getElementById('video-user-list');
+            listEl.innerHTML = '';
+            videoUsers.forEach(username => {
+                const user = users.find(u=>u.username===username);
+                const div = document.createElement('div');
+                div.className = `flex flex-col items-center cursor-pointer ${currentVideoUser===username?'opacity-100':'opacity-70'}`;
+                div.innerHTML = `<div class="avatar-1x1 ${currentVideoUser===username?'ring-2 ring-mcGreen':''} bg-gray-100 flex items-center justify-center">${user?.avatar ? `<img src="${user.avatar}" class="w-full h-full object-cover">` : '<i class="fas fa-user text-xl text-mcBlack/50"></i>'}</div><p class="text-xs mt-1 text-mcBlack">${escapeHtml(user?.nickname||username)}</p>`;
+                div.addEventListener('click', () => { currentVideoUser = username; loadVideoUserList(); loadVideoList(); });
+                listEl.appendChild(div);
+            });
+        }
+
+        function loadVideoList() {
+            const videos = getVideos().filter(v=>v.username===currentVideoUser);
+            const cu = JSON.parse(sessionStorage.getItem('current_user'));
+            const users = getUsers();
+            const listEl = document.getElementById('video-list');
+            listEl.innerHTML = '';
+            if (!videos.length) { listEl.innerHTML = '<p class="text-center text-mcBlack/70">暂无视频</p>'; return; }
+            videos.forEach(video => {
+                const isAdmin = cu.permission>=3, isSelf = video.username===cu.username;
+                const videoUser = users.find(u=>u.username===video.username);
+                const div = document.createElement('div');
+                div.className = 'mb-8 border rounded-lg overflow-hidden';
+                div.innerHTML = `
+                    <div class="aspect-video bg-black"><video src="${video.url}" controls class="w-full h-full"></video></div>
+                    <div class="p-4 bg-white">
+                        <div class="flex justify-between items-center mb-2">
+                            <div><p class="font-medium text-mcBlack">${escapeHtml(video.name)}</p><p class="text-xs text-mcBlack/70">上传者：${escapeHtml(videoUser?.nickname||video.username)} | 上传时间：${new Date(video.uploadTime).toLocaleString()}</p></div>
+                            ${(isAdmin||isSelf) ? `<button class="text-red-500 text-sm delete-video-btn" data-id="${video.id}"><i class="fas fa-trash"></i> 删除</button>` : ''}
+                        </div>
+                        <button class="text-mcGreen text-sm comment-btn" data-id="${video.id}"><i class="fas fa-comment mr-1"></i>评论</button>
+                    </div>`;
+                listEl.appendChild(div);
+            });
+            document.querySelectorAll('.delete-video-btn').forEach(b => b.addEventListener('click', (e) => {
+                if (confirm('确定删除？（云端文件将保留）')) {
+                    const id = parseInt(e.target.dataset.id||e.target.parentElement.dataset.id);
+                    saveVideos(getVideos().filter(v=>v.id!==id));
+                    loadVideoList(); loadVideoUserList();
+                }
+            }));
+            document.querySelectorAll('.comment-btn').forEach(b => b.addEventListener('click', (e) => {
+                currentVideo = parseInt(e.target.dataset.id||e.target.parentElement.dataset.id);
+                loadCommentList(currentVideo);
+                document.getElementById('comment-modal').classList.remove('hidden');
+            }));
+        }
+
+        function loadCommentList(videoId) {
+            const map = getVideoComments();
+            const comments = map[videoId] || [];
+            const listEl = document.getElementById('comment-list');
+            listEl.innerHTML = '';
+            if (!comments.length) { listEl.innerHTML = '<p class="text-center text-mcBlack/70">暂无评论</p>'; return; }
+            comments.forEach(comment => {
+                const div = document.createElement('div');
+                div.className = 'border-b pb-4';
+                div.innerHTML = `
+                    <div class="flex items-start"><i class="fas fa-user-circle text-xl mr-2 text-mcBlack/50"></i><div class="flex-1">
+                        <p class="font-medium text-sm">${escapeHtml(comment.username)}</p><p class="text-sm">${escapeHtml(comment.content)}</p>
+                        <p class="text-xs text-mcBlack/70">${new Date(comment.time).toLocaleString()}</p>
+                        <button class="text-xs text-mcGreen reply-btn" data-id="${comment.id}">回复</button>
+                        <div class="reply-section hidden mt-2 flex space-x-2">
+                            <input type="text" class="reply-input flex-1 border rounded px-2 py-1 text-sm" placeholder="回复...">
+                            <button class="send-reply-btn text-xs pixel-btn px-2 py-1" data-comment-id="${comment.id}">发送</button>
+                        </div>
+                        <div class="mt-2 pl-4 border-l space-y-2">${(comment.replies||[]).map(r => `<div class="text-sm"><span class="font-medium">${escapeHtml(r.username)}:</span> ${escapeHtml(r.content)} <p class="text-xs text-mcBlack/70">${new Date(r.time).toLocaleString()}</p></div>`).join('')}</div>
+                    </div></div>`;
+                listEl.appendChild(div);
+            });
+            document.querySelectorAll('.reply-btn').forEach(b => b.addEventListener('click', () => {
+                const sec = b.closest('.border-b').querySelector('.reply-section');
+                sec.classList.toggle('hidden');
+                if (!sec.classList.contains('hidden')) sec.querySelector('.reply-input').focus();
+            }));
+            document.querySelectorAll('.send-reply-btn').forEach(b => b.addEventListener('click', () => {
+                const commentId = parseInt(b.dataset.commentId);
+                const sec = b.closest('.border-b').querySelector('.reply-section');
+                const input = sec.querySelector('.reply-input');
+                const content = input.value.trim();
+                if (!content) return;
+                const cu = JSON.parse(sessionStorage.getItem('current_user'));
+                const map = getVideoComments();
+                const comment = map[videoId]?.find(c=>c.id===commentId);
+                if (comment) {
+                    if (!comment.replies) comment.replies = [];
+                    comment.replies.push({ username: cu.nickname, content, time: Date.now() });
+                    saveVideoComments(map);
+                    loadCommentList(videoId);
+                }
+            }));
+        }
+
+        function loadGroupList() {
+            const groups = getGroups();
+            const listEl = document.getElementById('group-list');
+            listEl.innerHTML = '';
+            if (!groups.length) {
+                listEl.innerHTML = '<p class="p-3 text-center text-mcBlack/70">暂无群组</p>';
+                document.getElementById('group-chat-input').disabled = true;
+                document.getElementById('group-chat-send').disabled = true;
+                return;
+            }
+            groups.forEach(group => {
+                const div = document.createElement('div');
+                div.className = `p-3 cursor-pointer hover:bg-mcGreen/10 flex items-center relative ${currentGroup===group.name?'bg-mcGreen/10':''}`;
+                div.innerHTML = `<i class="fas fa-users text-2xl mr-2 text-mcBlack/50"></i><div><p class="text-mcBlack">${escapeHtml(group.name)}</p></div>${group.unread>0 ? `<span class="unread-badge">${group.unread>9?'9+':group.unread}</span>` : ''}`;
+                div.addEventListener('click', () => {
+                    currentGroup = group.name;
+                    const g = groups.find(gr=>gr.name===group.name); g.unread=0; saveGroups(groups);
+                    loadGroupChat(group.name); loadGroupList();
+                });
+                listEl.appendChild(div);
+            });
+        }
+
+        function loadGroupChat(groupName) {
+            const msgs = JSON.parse(localStorage.getItem('mc_group_messages')||'{}')[groupName] || [];
+            document.getElementById('group-chat-title').textContent = groupName;
+            document.getElementById('group-chat-input').disabled = false;
+            document.getElementById('group-chat-send').disabled = false;
+            const el = document.getElementById('group-chat-messages');
+            el.innerHTML = '';
+            const cu = JSON.parse(sessionStorage.getItem('current_user'));
+            msgs.forEach(msg => {
+                const isSelf = msg.username === cu.username;
+                const div = document.createElement('div');
+                div.className = `flex ${isSelf?'justify-end':'justify-start'}`;
+                div.innerHTML = `${isSelf?'':'<i class="fas fa-user-circle text-2xl mr-2 text-mcBlack/50"></i>'}<div class="${isSelf?'message-bubble-self':'message-bubble-other'}"><p>${escapeHtml(msg.content)}</p><p class="text-xs ${isSelf?'text-right opacity-75':'opacity-75'}">${new Date(msg.time).toLocaleString()}</p></div>${isSelf?'<i class="fas fa-user-circle text-2xl ml-2 text-mcGreen"></i>':''}`;
+                el.appendChild(div);
+            });
+            el.scrollTop = el.scrollHeight;
+        }
+
+        function sendGroupMessage(cu) {
+            if (!currentGroup) return;
+            const content = document.getElementById('group-chat-input').value.trim();
+            if (!content) return;
+            const map = JSON.parse(localStorage.getItem('mc_group_messages')||'{}');
+            if (!map[currentGroup]) map[currentGroup] = [];
+            map[currentGroup].push({ username: cu.username, content, time: Date.now() });
+            localStorage.setItem('mc_group_messages', JSON.stringify(map));
+            // 增加其他成员的未读计数
+            const groups = getGroups();
+            const group = groups.find(g => g.name === currentGroup);
+            if (group) {
+                group.members.forEach(member => {
+                    if (member !== cu.username) {
+                        const otherGroup = groups.find(g => g.name === currentGroup);
+                        if (otherGroup) otherGroup.unread = (otherGroup.unread || 0) + 1;
+                    }
+                });
+                saveGroups(groups);
+                loadGroupList();
+            }
+            document.getElementById('group-chat-input').value = '';
+            loadGroupChat(currentGroup);
+        }
+
+        function loadFriendList() {
+            const friends = JSON.parse(localStorage.getItem('mc_friends')||'[]');
+            const listEl = document.getElementById('friend-list');
+            listEl.innerHTML = '';
+            if (!friends.length) { listEl.innerHTML = '<p class="p-3 text-center text-mcBlack/70">暂无好友</p>'; return; }
+            const users = getUsers();
+            friends.forEach(f => {
+                const user = users.find(u=>u.username===f.username);
+                const div = document.createElement('div');
+                div.className = `p-3 cursor-pointer hover:bg-mcGreen/10 flex items-center ${currentFriend===f.username?'bg-mcGreen/10':''}`;
+                div.innerHTML = `<i class="fas fa-user-circle text-2xl mr-2 ${f.online?'text-mcGreen':'text-mcBlack/50'}"></i><div><p class="text-mcBlack">${escapeHtml(user?.nickname||f.username)}</p><p class="text-xs ${f.online?'text-mcGreen':'text-mcBlack/70'}">${f.online?'在线':'离线'}</p></div>`;
+                div.addEventListener('click', () => { currentFriend = f.username; loadFriendChat(f.username); loadFriendList(); });
+                listEl.appendChild(div);
+            });
+        }
+
+        function loadFriendChat(fn) {
+            const msgs = JSON.parse(localStorage.getItem('mc_friend_messages')||'{}')[fn] || [];
+            document.getElementById('friend-chat-title').textContent = `与 ${fn} 的聊天`;
+            document.getElementById('friend-chat-input').disabled = false;
+            document.getElementById('friend-chat-send').disabled = false;
+            const el = document.getElementById('friend-chat-messages');
+            el.innerHTML = '';
+            const cu = JSON.parse(sessionStorage.getItem('current_user'));
+            msgs.forEach(msg => {
+                const isSelf = msg.username === cu.username;
+                const div = document.createElement('div');
+                div.className = `flex ${isSelf?'justify-end':'justify-start'}`;
+                div.innerHTML = `${isSelf?'':'<i class="fas fa-user-circle text-2xl mr-2 text-mcBlack/50"></i>'}<div class="${isSelf?'message-bubble-self':'message-bubble-other'}"><p>${escapeHtml(msg.content)}</p><p class="text-xs ${isSelf?'text-right opacity-75':'opacity-75'}">${new Date(msg.time).toLocaleString()}</p></div>${isSelf?'<i class="fas fa-user-circle text-2xl ml-2 text-mcGreen"></i>':''}`;
+                el.appendChild(div);
+            });
+            el.scrollTop = el.scrollHeight;
+        }
+
+        function sendFriendMessage(cu) {
+            if (!currentFriend) return;
+            const content = document.getElementById('friend-chat-input').value.trim();
+            if (!content) return;
+            const map = JSON.parse(localStorage.getItem('mc_friend_messages')||'{}');
+            if (!map[currentFriend]) map[currentFriend] = [];
+            map[currentFriend].push({ username: cu.username, content, time: Date.now() });
+            localStorage.setItem('mc_friend_messages', JSON.stringify(map));
+            document.getElementById('friend-chat-input').value = '';
+            loadFriendChat(currentFriend);
+        }
+
+        initStorage();
+        const savedUser = sessionStorage.getItem('current_user');
+        if (savedUser) loadMainPage(JSON.parse(savedUser));
+    </script>
+</body>
+</html>
